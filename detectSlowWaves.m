@@ -3,7 +3,7 @@ function [waves] = detectSlowWaves(eeg,fs,epochl)
 	% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	% detect slow wave patterns in an electrophysiological wave
 	% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	% :param eeg - wave vectort
+	% :param eeg - wave vector
 	% :param fs - frequency in hertz
 	% :param epochl - length of an epochs
 

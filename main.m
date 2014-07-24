@@ -3,34 +3,81 @@
 % detect unit activity and slow wave patterns
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-% p1=str2double(get(handles.lowPassEdge,'String')); 
-% p2=str2double(get(handles.highPassEdge,'String')); % pass band
-% s1=str2double(get(handles.lowStopEdge,'String'));
-% s2=str2double(get(handles.highStopEdge,'String')); % stop band
-% Rp=str2double(get(handles.passBandRipple,'String')); 
-% Rs=str2double(get(handles.stopBandAttenuation,'String'));
+addpath './tdt'
+tank = 'D:\OptoTagging\7_23_14_R2180';
+block = 'Stimulate_10min';
 
+data = TDT2mat(tank,block,'VERBOSE',false);
 
-% Wp=[p1 p2]/(fs/2); Ws=[s1 s2]/(fs/2);  
-% [n, Wn]=cheb2ord(Wp,Ws,Rp,Rs);
-% [bb,aa]=cheby2(n,Rs,Wn);
-% filtered_matrix = handles.matrix;
-% s = warning('error','MATLAB:nearlySingularMatrix');
-% try
-%     filtered_matrix(:,2:end) = filtfilt(bb,aa,handles.matrix(:,2:end));
-% catch err
-%     msgbox('The current parameters create a non-invertible matrix that would create improper scaling. Vary the Chebyshev parameters or compression.');
-% end
-% warning(s);
-
-% tdt.TDT2Mat('data','6_17_14_10min_Stim');
-
-tank = 'data/6_17_14_10min_Stim';
-sev = '6_17_14_6_17_14_10min_Stim_EEGx_Ch'
 chan = 1;
+sortCode = 2;
+snippetWidth = 100;
+snippetOffset = 100;
 
-sevData = tdt.SEV2mat(tank,'CHANNEL',chan);
+% get the unit activity
+units = unitactivity( struct( ...
+	'channel', chan, ...
+	'sort', sortCode, ...
+	'snippetWidth',snippetWidth, ...
+	'snippetOffset',snippetOffset, ...
+	'data',data, ...
+	'plot', 'false' ));
 
-eeg = sevData.EEGx;
 
-detectSlowWaves(eeg.data,eeg.fs,10);
+% set up parameters that define a slow wave:
+% 
+% - Chebyshev Type II Parameters
+% 	- Passband Edges
+% 		- lowPassEdge (?)
+% 		- highPassEdge (?)
+% 	- StopBand Edges
+% 		- lowStopEdge (?)
+% 		- highStopEdge (?)
+% 	- passBandRipple (?)
+% 	- stopBandAttenuation (?)
+% - Wave Detection Parameters
+% 	- amplitude (microV)
+% 	- maxAmplitude (microV)
+% 	- p2ptime (seconds)
+% 	- maxp2ptime (seconds)
+% 	- epochLength (seconds)
+% 
+params = struct( ...
+	'lowPassEdge', 0.5, ...
+	'highPassEdge', 4, ...
+	'lowStopEdge', 0.01, ...
+	'highStopEdge', 10, ...
+	'passBandRipple', 3, ...
+	'stopBandAttenuation', 20, ...
+	'amplitude', 0.100, ...
+	'maxAmplitude', 0.600, ...
+	'p2ptime', 0.25, ...
+	'maxp2ptime', 2, ...
+	'epochLength', 4 );
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+% slow wave detection algorithms
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+% Chebyshev filtering
+Wp=[ params.lowPassEdge  params.highPassEdge ]/(units.fs/2); Ws=[ params.lowStopEdge params.highStopEdge ]/(units.fs/2);  
+[n, Wn]=cheb2ord(Wp,Ws,params.passBandRipple, params.stopBandAttenuation);
+[bb,aa]=cheby2( n, params.stopBandAttenuation, Wn );
+
+try
+	filtered_matrix = filtfilt(bb,aa,units.y);
+catch err
+	warning(['The current parameters create a non-invertible matrix that would create improper scaling' ...
+		'Vary the Chebyshev parameters or compression.']);
+end
+
+slowWaves = detectSlowWaves( filtered_matrix, units.fs, params.epochLength );
+slowWaves = slowWaves( slowWaves(:,5)>=params.p2ptime,:);
+slowWaves = slowWaves( slowWaves(:,5)<=params.maxp2ptime,:);
+slowWaves = slowWaves( slowWaves(:,6)>=params.amplitude,:);
+slowWaves = slowWaves( slowWaves(:,6)<=params.maxAmplitude,:);
+tableWaves = slowWaves;
+% tableWaves(:,2:4) = tableWaves(:,2:4)/units.fs;
+
+
+
